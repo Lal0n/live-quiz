@@ -58,7 +58,7 @@
     .form-group { margin-bottom: 14px; }
     label { display: block; font-weight: bold; margin-bottom: 6px; }
 
-    input[type="text"], input[type="number"], input[type="password"], select {
+    input[type="text"], input[type="number"], select {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--border);
@@ -212,6 +212,14 @@
       border-radius: 6px;
       margin-bottom: 4px;
     }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 13px;
+      width: auto;
+      display: inline-block;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -227,7 +235,6 @@
 
   <!-- מסך מורה: ניהול בנק שאלות ושידור -->
   <div id="hostScreen" class="hidden">
-    <!-- קישור ישיר לשיתוף עם התלמידים בלבד -->
     <div class="share-link-box">
       <h3 style="margin-bottom:8px;">הצטרפות תלמידים לשיעור</h3>
       <button class="btn btn-success" style="width:auto; padding:10px 20px;" onclick="copyStudentLink()">📋 העתק קישור הצטרפות לתלמידים</button>
@@ -236,7 +243,7 @@
     <p style="text-align:center;">תלמידים מחוברים כעת: <strong id="connectedCount" style="color:var(--primary);">0</strong></p>
     <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
 
-    <!-- אזור בחירה / יצירת שאלון -->
+    <!-- אזור בחירה / יצירת / טעינת שאלון -->
     <div class="preset-box">
       <h3>ניהול שאלון</h3>
       <div style="text-align:center;">
@@ -250,13 +257,24 @@
           <option value="">-- טוען רשימה... --</option>
         </select>
       </div>
-      <button class="btn btn-success" onclick="loadSelectedPreset()">טען שאלון נבחר</button>
+      <button class="btn btn-success" onclick="loadSelectedPreset()">טען שאלון מ-GitHub</button>
+      
+      <div style="margin-top:12px; text-align:center;">
+        <label style="cursor:pointer;" class="btn btn-outline">
+          📂 העלה קובץ שאלון (JSON) מהמכשיר
+          <input type="file" id="localFileInput" accept=".json" style="display:none;" onchange="loadLocalJSON(event)">
+        </label>
+      </div>
+
       <button class="btn btn-outline" style="margin-top:8px;" onclick="createNewQuiz()">+ צור שאלון חדש מאפס</button>
+      <button class="btn btn-secondary" style="margin-top:8px;" onclick="downloadQuizJSON()">💾 הורד קובץ שאלון מעודכן (JSON)</button>
     </div>
 
-    <!-- טופס יצירת שאלה ידנית -->
+    <!-- טופס יצירת / עריכת שאלה -->
     <div id="builderArea">
-      <h3>הוספת שאלה לשאלון</h3>
+      <h3 id="formModeTitle">הוספת שאלה לשאלון</h3>
+      <input type="hidden" id="editIndex" value="-1">
+
       <div class="form-group">
         <label>נוסח השאלה:</label>
         <input type="text" id="qTitle" placeholder="רשום את השאלה...">
@@ -289,7 +307,8 @@
         <input type="number" id="qTimer" value="30">
       </div>
 
-      <button class="btn" onclick="addQuestionToBank()">+ הוסף שאלה זו לבנק</button>
+      <button class="btn" id="saveQuestionBtn" onclick="saveQuestionToBank()">+ הוסף שאלה זו לבנק</button>
+      <button class="btn btn-secondary hidden" id="cancelEditBtn" onclick="resetForm()">ביטול עריכה</button>
     </div>
 
     <!-- רשימת בנק השאלות הטעון -->
@@ -323,7 +342,11 @@
       <span> | ניקוד: <strong id="studentScore">0</strong></span>
     </div>
 
-    <h3 id="studentStatus">ממתין לשאלה מהמורה...</h3>
+    <div id="studentWaitingArea" style="text-align:center; padding: 20px 0;">
+      <h3 id="studentStatus">מחובר לשיעור בהצלחה!</h3>
+      <p style="color:#64748b;">המורה עוד לא שידר שאלה. השאלה תופיע במסך זה באופן אוטומטי ברגע שהמורה יתחיל אותה.</p>
+    </div>
+
     <div id="studentTimer" class="timer-box"></div>
 
     <div id="studentQArea" class="hidden">
@@ -341,10 +364,8 @@
 </div>
 
 <script>
-  // קוד כניסת מורה מעודכן
   const TEACHER_PASSWORD = "2358";
 
-  // מחולל כינויים אנונימיים לתלמידים
   const animals = ["סנאי", "בונה", "ינשוף", "קנגורו", "דולפין", "אריה", "פנדה", "נשר", "שועל", "דוב"];
   const adjectives = ["אנונימי", "חרוץ", "סקרן", "נמרץ", "מהיר", "חכם", "חייכן", "אמיץ", "שנון", "יצירתי"];
 
@@ -356,14 +377,13 @@
 
   let peer, roomCode;
   let connections = {};
-  let studentsData = {}; // שומר שם וניקוד של כל תלמיד
+  let studentsData = {};
   let currentQuizTitle = "שאלון חדש";
   let questionBank = [];
   let currentQ = null;
   let responses = {};
   let timerInterval;
 
-  // --- בדיקה בעת טעינת הדף אם יש קוד חדר ב-URL (כניסת תלמיד) ---
   window.onload = function() {
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
@@ -383,7 +403,6 @@
     }
   }
 
-  // --- טעינת אינדקס שאלונים מ-quizzes.json ---
   async function fetchPresetList() {
     try {
       const res = await fetch('quizzes.json');
@@ -417,6 +436,27 @@
     }
   }
 
+  // טעינת קובץ JSON ישירות מהמחשב/נייד של המורה
+  function loadLocalJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        currentQuizTitle = data.name || file.name.replace('.json', '');
+        document.getElementById('currentQuizName').innerText = currentQuizTitle;
+        questionBank = data.questions || (Array.isArray(data) ? data : []);
+        renderBank();
+        alert(`השאלון "${currentQuizTitle}" נטען בהצלחה מהמכשיר!`);
+      } catch (err) {
+        alert('קובץ ה-JSON אינו תקין');
+      }
+    };
+    reader.readAsText(file);
+  }
+
   function createNewQuiz() {
     const name = prompt("הכנס שם לשאלון החדש:", "שאלון חדש בפיזיקה");
     if(name) {
@@ -427,7 +467,18 @@
     }
   }
 
-  // --- הגדרות תקשורת מורה (PeerJS) ---
+  function downloadQuizJSON() {
+    if(questionBank.length === 0) return alert('אין שאלות בבנק להורדה');
+    const dataObj = { name: currentQuizTitle, questions: questionBank };
+    const jsonStr = JSON.stringify(dataObj, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentQuizTitle.replace(/\s+/g, '_')}.json`;
+    a.click();
+  }
+
   function initHost() {
     roomCode = Math.floor(1000 + Math.random() * 9000).toString();
     peer = new Peer('room-' + roomCode);
@@ -479,12 +530,13 @@
     document.getElementById('mcOptions').style.display = (type === 'mc') ? 'block' : 'none';
   }
 
-  function addQuestionToBank() {
+  function saveQuestionToBank() {
     const title = document.getElementById('qTitle').value.trim();
     const type = document.getElementById('qType').value;
     const timer = parseInt(document.getElementById('qTimer').value) || 0;
     const correctVal = document.getElementById('qCorrect').value;
     const correct = correctVal !== "" ? parseInt(correctVal) - 1 : -1;
+    const editIdx = parseInt(document.getElementById('editIndex').value);
 
     if(!title) return alert('נא להזין נוסח שאלה');
 
@@ -496,12 +548,48 @@
       if(options.length < 2) return alert('נא להזין לפחות 2 תשובות');
     }
 
-    questionBank.push({ title, type, options, timer, correct });
-    renderBank();
+    const qData = { title, type, options, timer, correct };
 
+    if (editIdx >= 0) {
+      questionBank[editIdx] = qData;
+    } else {
+      questionBank.push(qData);
+    }
+
+    renderBank();
+    resetForm();
+  }
+
+  function editQuestion(idx) {
+    const q = questionBank[idx];
+    document.getElementById('editIndex').value = idx;
+    document.getElementById('qTitle').value = q.title;
+    document.getElementById('qType').value = q.type;
+    document.getElementById('qTimer').value = q.timer;
+    document.getElementById('qCorrect').value = q.correct >= 0 ? q.correct + 1 : '';
+
+    toggleTypeUI();
+
+    if(q.type === 'mc') {
+      const inputs = document.querySelectorAll('.mc-input');
+      inputs.forEach((inp, i) => {
+        inp.value = q.options[i] || '';
+      });
+    }
+
+    document.getElementById('formModeTitle').innerText = `עריכת שאלה מס' ${idx + 1}`;
+    document.getElementById('saveQuestionBtn').innerText = "עדכן שאלה זו";
+    document.getElementById('cancelEditBtn').classList.remove('hidden');
+  }
+
+  function resetForm() {
+    document.getElementById('editIndex').value = "-1";
     document.getElementById('qTitle').value = '';
     document.querySelectorAll('.mc-input').forEach(i => i.value = '');
     document.getElementById('qCorrect').value = '';
+    document.getElementById('formModeTitle').innerText = "הוספת שאלה לשאלון";
+    document.getElementById('saveQuestionBtn').innerText = "+ הוסף שאלה זו לבנק";
+    document.getElementById('cancelEditBtn').classList.add('hidden');
   }
 
   function renderBank() {
@@ -513,7 +601,9 @@
       list.innerHTML += `
         <div class="q-card">
           <strong>${idx + 1}. ${q.title}</strong> (${q.type === 'mc' ? 'אמריקאית' : 'פתוחה'}, ${q.timer} ש')
-          <button class="btn" style="padding:8px; margin-top:8px;" onclick="broadcastQuestion(${idx})">שדר שאלה זו לתלמידים</button>
+          <br>
+          <button class="btn btn-sm" onclick="broadcastQuestion(${idx})">שדר שאלה זו</button>
+          <button class="btn btn-sm btn-outline" onclick="editQuestion(${idx})">✏️ ערוך</button>
         </div>
       `;
     });
@@ -582,7 +672,6 @@
       Object.values(responses).forEach(ans => { if(counts[ans] !== undefined) counts[ans]++; });
     }
 
-    // חישוב ניקוד
     if(currentQ.type === 'mc' && currentQ.correct >= 0) {
       Object.entries(responses).forEach(([pId, ans]) => {
         if(ans === currentQ.correct && studentsData[pId]) {
@@ -596,7 +685,6 @@
 
     updateLeaderboard();
 
-    // שידור התוצאות והתשובה הנכונה לכל התלמידים
     for(let id in connections) {
       let myAns = responses[id];
       let myScore = studentsData[id] ? studentsData[id].score : 0;
@@ -658,7 +746,7 @@
   }
 
   function showStudentQuestion(q) {
-    document.getElementById('studentStatus').innerText = 'שאלה פעילה:';
+    document.getElementById('studentWaitingArea').classList.add('hidden');
     document.getElementById('studentQArea').classList.remove('hidden');
     document.getElementById('studentFeedback').classList.add('hidden');
     document.getElementById('studentQTitle').innerText = q.title;
