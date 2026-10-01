@@ -14,6 +14,7 @@
       --card: #ffffff;
       --text: #0f172a;
       --success: #16a34a;
+      --danger: #dc2626;
       --border: #cbd5e1;
     }
 
@@ -109,7 +110,7 @@
       font-size: 40px;
       font-weight: bold;
       text-align: center;
-      color: #dc2626;
+      color: var(--danger);
       margin: 10px 0;
     }
 
@@ -152,15 +153,6 @@
 
     .opt-card.correct .correct-tag { display: inline; }
 
-    .room-code {
-      font-size: 36px;
-      font-weight: bold;
-      letter-spacing: 2px;
-      color: var(--primary);
-      text-align: center;
-      display: block;
-    }
-
     .opt-btn {
       background: #f1f5f9;
       color: var(--text);
@@ -190,10 +182,35 @@
     .share-link-box {
       background: #f8fafc;
       border: 1px dashed var(--primary);
-      padding: 12px;
+      padding: 16px;
       border-radius: 8px;
       text-align: center;
       margin: 12px 0;
+    }
+
+    .user-badge {
+      background: #f3e8ff;
+      color: #6b21a8;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-weight: bold;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+
+    .score-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .score-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 4px;
     }
   </style>
 </head>
@@ -201,31 +218,19 @@
 
 <div class="container">
 
-  <!-- מסך ראשי: בחירת תפקיד -->
+  <!-- מסך ראשי: כניסת מורה -->
   <div id="roleSelectScreen">
     <h1>מערכת השאלות בלייב</h1>
-    <button class="btn" onclick="promptTeacherPassword()">אני מורה (פתיחת שיעור)</button>
-    <button class="btn btn-secondary" onclick="showStudentConnect()">אני תלמיד (התחברות)</button>
-  </div>
-
-  <!-- התחברות תלמיד -->
-  <div id="studentConnectScreen" class="hidden">
-    <h2>התחברות לשיעור</h2>
-    <div class="form-group">
-      <label>קוד החדר (4 ספרות מהמורה):</label>
-      <input type="text" id="joinRoomCode" placeholder="למשל: 1234">
-    </div>
-    <button class="btn" onclick="connectAsStudent()">התחבר</button>
+    <p style="text-align:center;">לחץ למטה כדי לפתוח שיעור כמורה:</p>
+    <button class="btn" onclick="promptTeacherPassword()">כניסת מורה (פתיחת שיעור)</button>
   </div>
 
   <!-- מסך מורה: ניהול בנק שאלות ושידור -->
   <div id="hostScreen" class="hidden">
-    <h2>קוד חדר להצטרפות: <span id="displayRoomCode" class="room-code">....</span></h2>
-    
-    <!-- קישור ישיר לשיתוף עם התלמידים -->
+    <!-- קישור ישיר לשיתוף עם התלמידים בלבד -->
     <div class="share-link-box">
-      <span>קישור ישיר לתלמידים:</span>
-      <button class="btn btn-sm btn-outline" style="width:auto; margin-right:8px;" onclick="copyStudentLink()">📋 העתק קישור ישיר</button>
+      <h3 style="margin-bottom:8px;">הצטרפות תלמידים לשיעור</h3>
+      <button class="btn btn-success" style="width:auto; padding:10px 20px;" onclick="copyStudentLink()">📋 העתק קישור הצטרפות לתלמידים</button>
     </div>
 
     <p style="text-align:center;">תלמידים מחוברים כעת: <strong id="connectedCount" style="color:var(--primary);">0</strong></p>
@@ -304,10 +309,20 @@
 
     <button class="btn btn-secondary" style="margin-top:20px;" onclick="revealAnswer()">חשוף תשובה נכונה (ועצור זמן)</button>
     <button class="btn" onclick="backToBank()">חזור לבנק השאלות</button>
+
+    <div style="margin-top:24px;">
+      <h3>לוח ניקוד כיתתי:</h3>
+      <ul id="leaderboard" class="score-list"></ul>
+    </div>
   </div>
 
   <!-- מסך תלמיד: קבלת שאלה ומענה -->
   <div id="studentScreen" class="hidden">
+    <div style="text-align:center;">
+      <span id="studentBadge" class="user-badge">...</span>
+      <span> | ניקוד: <strong id="studentScore">0</strong></span>
+    </div>
+
     <h3 id="studentStatus">ממתין לשאלה מהמורה...</h3>
     <div id="studentTimer" class="timer-box"></div>
 
@@ -318,43 +333,53 @@
     </div>
 
     <div id="studentFeedback" class="hidden" style="text-align:center; margin-top:20px;">
-      <h2>התשובה נשלחה בהצלחה!</h2>
-      <p>ממתין לשאלה הבאה...</p>
+      <h2 id="feedbackMsg">התשובה נשלחה בהצלחה!</h2>
+      <div id="studentLiveResults"></div>
     </div>
   </div>
 
 </div>
 
 <script>
-  // סיסמת מורה (תוכל לשנות כאן לכל סיסמה שתרצה)
-  const TEACHER_PASSWORD = "1234";
+  // קוד כניסת מורה מעודכן
+  const TEACHER_PASSWORD = "2358";
+
+  // מחולל כינויים אנונימיים לתלמידים
+  const animals = ["סנאי", "בונה", "ינשוף", "קנגורו", "דולפין", "אריה", "פנדה", "נשר", "שועל", "דוב"];
+  const adjectives = ["אנונימי", "חרוץ", "סקרן", "נמרץ", "מהיר", "חכם", "חייכן", "אמיץ", "שנון", "יצירתי"];
+
+  function getRandomName() {
+    const a = animals[Math.floor(Math.random() * animals.length)];
+    const b = adjectives[Math.floor(Math.random() * adjectives.length)];
+    return `${a} ${b}`;
+  }
 
   let peer, roomCode;
   let connections = {};
+  let studentsData = {}; // שומר שם וניקוד של כל תלמיד
   let currentQuizTitle = "שאלון חדש";
   let questionBank = [];
   let currentQ = null;
   let responses = {};
   let timerInterval;
 
-  // --- בדיקה בעת טעינת הדף אם יש קוד חדר ב-URL ---
+  // --- בדיקה בעת טעינת הדף אם יש קוד חדר ב-URL (כניסת תלמיד) ---
   window.onload = function() {
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
     
     if (roomFromUrl) {
-      document.getElementById('joinRoomCode').value = roomFromUrl;
-      showStudentConnect();
-      connectAsStudent();
+      document.getElementById('roleSelectScreen').classList.add('hidden');
+      connectAsStudent(roomFromUrl);
     }
   };
 
   function promptTeacherPassword() {
-    const pwd = prompt("הכנס סיסמת מורה:");
+    const pwd = prompt("הכנס קוד כניסה למורה:");
     if (pwd === TEACHER_PASSWORD) {
       initHost();
     } else if (pwd !== null) {
-      alert("סיסמה שגויה!");
+      alert("קוד כניסה שגוי!");
     }
   }
 
@@ -410,18 +435,20 @@
     peer.on('open', () => {
       document.getElementById('roleSelectScreen').classList.add('hidden');
       document.getElementById('hostScreen').classList.remove('hidden');
-      document.getElementById('displayRoomCode').innerText = roomCode;
       fetchPresetList();
     });
 
     peer.on('connection', (conn) => {
       conn.on('open', () => {
         connections[conn.peer] = conn;
-        updateConnectedCount();
       });
 
       conn.on('data', (data) => {
-        if(data.type === 'ANSWER') {
+        if(data.type === 'REGISTER') {
+          studentsData[conn.peer] = { name: data.name, score: 0 };
+          updateConnectedCount();
+        }
+        else if(data.type === 'ANSWER') {
           responses[conn.peer] = data.answer;
           updateHostLiveResults();
         }
@@ -429,6 +456,7 @@
 
       conn.on('close', () => {
         delete connections[conn.peer];
+        delete studentsData[conn.peer];
         updateConnectedCount();
       });
     });
@@ -504,6 +532,7 @@
     document.getElementById('activeQTitle').innerText = currentQ.title;
 
     updateHostLiveResults();
+    updateLeaderboard();
 
     if(currentQ.timer > 0) startTimer(currentQ.timer, 'hostTimer');
     else document.getElementById('hostTimer').innerText = '';
@@ -536,8 +565,9 @@
       });
     } else {
       area.innerHTML = '<h3>תשובות התלמידים:</h3>';
-      Object.values(responses).forEach(ans => {
-        area.innerHTML += `<div class="short-ans-item">${ans}</div>`;
+      Object.entries(responses).forEach(([pId, ans]) => {
+        let name = studentsData[pId] ? studentsData[pId].name : 'תלמיד';
+        area.innerHTML += `<div class="short-ans-item"><strong>${name}:</strong> ${ans}</div>`;
       });
     }
   }
@@ -546,12 +576,51 @@
     clearInterval(timerInterval);
     document.getElementById('hostTimer').innerText = 'הזמן הופסק!';
 
+    let total = Object.keys(responses).length;
+    let counts = new Array(currentQ.options.length).fill(0);
+    if(currentQ.type === 'mc') {
+      Object.values(responses).forEach(ans => { if(counts[ans] !== undefined) counts[ans]++; });
+    }
+
+    // חישוב ניקוד
     if(currentQ.type === 'mc' && currentQ.correct >= 0) {
+      Object.entries(responses).forEach(([pId, ans]) => {
+        if(ans === currentQ.correct && studentsData[pId]) {
+          studentsData[pId].score += 10;
+        }
+      });
+
       const el = document.getElementById(`host-opt-${currentQ.correct}`);
       if(el) el.classList.add('correct');
-    } else if(currentQ.type === 'mc') {
-      alert('לא הוגדרה תשובה נכונה לשאלה זו.');
     }
+
+    updateLeaderboard();
+
+    // שידור התוצאות והתשובה הנכונה לכל התלמידים
+    for(let id in connections) {
+      let myAns = responses[id];
+      let myScore = studentsData[id] ? studentsData[id].score : 0;
+      connections[id].send({
+        type: 'REVEAL_RESULTS',
+        correct: currentQ.correct,
+        options: currentQ.options,
+        counts: counts,
+        total: total,
+        myAns: myAns,
+        myScore: myScore
+      });
+    }
+  }
+
+  function updateLeaderboard() {
+    const board = document.getElementById('leaderboard');
+    if(!board) return;
+    board.innerHTML = '';
+    Object.values(studentsData)
+      .sort((a,b) => b.score - a.score)
+      .forEach(st => {
+        board.innerHTML += `<li class="score-item"><span>${st.name}</span><strong>${st.score} נק'</strong></li>`;
+      });
   }
 
   function backToBank() {
@@ -561,30 +630,28 @@
   }
 
   // --- צד תלמיד ---
-  function showStudentConnect() {
-    document.getElementById('roleSelectScreen').classList.add('hidden');
-    document.getElementById('studentConnectScreen').classList.remove('hidden');
-  }
-
   let hostConn;
+  let myName = "";
   let studentSelectedAns = null;
 
-  function connectAsStudent() {
-    const code = document.getElementById('joinRoomCode').value.trim();
-    if(!code) return alert('נא להזין קוד חדר');
+  function connectAsStudent(roomCodeFromUrl) {
+    myName = getRandomName();
+    document.getElementById('studentBadge').innerText = myName;
 
     peer = new Peer();
     peer.on('open', () => {
-      hostConn = peer.connect('room-' + code);
+      hostConn = peer.connect('room-' + roomCodeFromUrl);
 
       hostConn.on('open', () => {
-        document.getElementById('studentConnectScreen').classList.add('hidden');
         document.getElementById('studentScreen').classList.remove('hidden');
+        hostConn.send({ type: 'REGISTER', name: myName });
       });
 
       hostConn.on('data', (data) => {
         if(data.type === 'QUESTION') {
           showStudentQuestion(data.question);
+        } else if(data.type === 'REVEAL_RESULTS') {
+          showStudentResults(data);
         }
       });
     });
@@ -630,6 +697,46 @@
 
     document.getElementById('studentQArea').classList.add('hidden');
     document.getElementById('studentFeedback').classList.remove('hidden');
+    document.getElementById('feedbackMsg').innerText = "התשובה נשלחה בהצלחה!";
+    document.getElementById('studentLiveResults').innerHTML = "<p>ממתין לסיום הזמן ולחשיפת התשובות מהמורה...</p>";
+  }
+
+  function showStudentResults(data) {
+    clearInterval(timerInterval);
+    document.getElementById('studentTimer').innerText = 'הזמן הופסק!';
+    document.getElementById('studentScore').innerText = data.myScore;
+
+    document.getElementById('studentQArea').classList.add('hidden');
+    document.getElementById('studentFeedback').classList.remove('hidden');
+
+    let isCorrect = (data.myAns === data.correct);
+    if(data.correct >= 0) {
+      document.getElementById('feedbackMsg').innerText = isCorrect ? "🎉 תשובה נכונה! (+10 נקודות)" : "❌ תשובה לא נכונה";
+    } else {
+      document.getElementById('feedbackMsg').innerText = "התשובות הופסקו!";
+    }
+
+    const resDiv = document.getElementById('studentLiveResults');
+    resDiv.innerHTML = '<h3>תוצאות ההצבעה בכיתה:</h3>';
+
+    if(data.options && data.options.length > 0) {
+      data.options.forEach((opt, i) => {
+        let count = data.counts[i] || 0;
+        let pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
+        let isRightOpt = (i === data.correct);
+        let borderStyle = isRightOpt ? 'border: 2px solid var(--success); background:#f0fdf4;' : '';
+
+        resDiv.innerHTML += `
+          <div style="margin:8px 0; padding:10px; background:#f1f5f9; border-radius:8px; ${borderStyle}">
+            <div style="display:flex; justify-content:space-between; font-weight:bold;">
+              <span>${isRightOpt ? '✓ ' : ''}${opt}</span>
+              <span>${pct}%</span>
+            </div>
+            <div class="bar-container"><div class="bar" style="width:${pct}%"></div></div>
+          </div>
+        `;
+      });
+    }
   }
 
   function startTimer(seconds, elementId) {
