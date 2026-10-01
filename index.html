@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מערכת שאלונים בלייב לשיעור</title>
+  <!-- ספריית תקשורת בזמן אמת (P2P) -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --success: #16a34a;
+      --border: #cbd5e1;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      direction: rtl;
+      text-align: right;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 750px;
+      background: var(--card);
+      padding: 28px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+      border: 1px solid var(--border);
+    }
+
+    h1, h2, h3 { text-align: center; color: var(--primary); margin-top: 0; }
+
+    .quiz-title-badge {
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+
+    .form-group { margin-bottom: 14px; }
+    label { display: block; font-weight: bold; margin-bottom: 6px; }
+
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 16px;
+      direction: rtl;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 8px;
+      text-align: center;
+    }
+    
+    .btn:hover { background-color: var(--primary-hover); }
+    .btn-secondary { background-color: #64748b; }
+    .btn-secondary:hover { background-color: #475569; }
+    .btn-success { background-color: var(--success); }
+    .btn-outline { background-color: transparent; color: var(--primary); border: 2px solid var(--primary); }
+    .btn-outline:hover { background-color: #eff6ff; }
+
+    .hidden { display: none; }
+
+    .preset-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 16px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .q-card {
+      background: #f1f5f9;
+      padding: 14px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border-right: 5px solid var(--primary);
+    }
+
+    .timer-box {
+      font-size: 40px;
+      font-weight: bold;
+      text-align: center;
+      color: #dc2626;
+      margin: 10px 0;
+    }
+
+    .bar-container {
+      height: 20px;
+      background-color: #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 6px;
+      direction: ltr;
+    }
+
+    .bar {
+      height: 100%;
+      background-color: var(--primary);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .opt-card {
+      margin: 12px 0;
+      padding: 12px;
+      background: #f1f5f9;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .opt-card.correct {
+      border-color: var(--success) !important;
+      background-color: #f0fdf4 !important;
+    }
+
+    .correct-tag {
+      color: var(--success);
+      font-weight: bold;
+      margin-right: 8px;
+      display: none;
+    }
+
+    .opt-card.correct .correct-tag { display: inline; }
+
+    .room-code {
+      font-size: 36px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: var(--primary);
+      text-align: center;
+      display: block;
+    }
+
+    .opt-btn {
+      background: #f1f5f9;
+      color: var(--text);
+      border: 2px solid var(--border);
+      text-align: right;
+      font-size: 18px;
+      padding: 14px;
+      margin: 8px 0;
+      border-radius: 8px;
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .opt-btn.selected {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .short-ans-item {
+      background: #f1f5f9;
+      padding: 10px 12px;
+      margin: 6px 0;
+      border-radius: 6px;
+      border-right: 3px solid var(--primary);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- מסך ראשי: בחירת תפקיד -->
+  <div id="roleSelectScreen">
+    <h1>מערכת השאלות בלייב</h1>
+    <button class="btn" onclick="initHost()">אני מורה (פתיחת שיעור)</button>
+    <button class="btn btn-secondary" onclick="showStudentConnect()">אני תלמיד (התחברות)</button>
+  </div>
+
+  <!-- התחברות תלמיד -->
+  <div id="studentConnectScreen" class="hidden">
+    <h2>התחברות לשיעור</h2>
+    <div class="form-group">
+      <label>קוד החדר (4 ספרות מהמורה):</label>
+      <input type="text" id="joinRoomCode" placeholder="למשל: 1234">
+    </div>
+    <button class="btn" onclick="connectAsStudent()">התחבר</button>
+  </div>
+
+  <!-- מסך מורה: ניהול בנק שאלות ושידור -->
+  <div id="hostScreen" class="hidden">
+    <h2>קוד חדר להצטרפות התלמידים: <span id="displayRoomCode" class="room-code">....</span></h2>
+    <p style="text-align:center;">תלמידים מחוברים כעת: <strong id="connectedCount" style="color:var(--primary);">0</strong></p>
+    <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
+
+    <!-- אזור בחירה / יצירת שאלון -->
+    <div class="preset-box">
+      <h3>ניהול שאלון</h3>
+      <div style="text-align:center;">
+        <span>שאלון פעיל: </span>
+        <span id="currentQuizName" class="quiz-title-badge">שאלון חדש</span>
+      </div>
+
+      <div class="form-group" style="margin-top:10px;">
+        <label for="presetSelect">טען שאלון מובנה מ-GitHub:</label>
+        <select id="presetSelect">
+          <option value="">-- טוען רשימה... --</option>
+        </select>
+      </div>
+      <button class="btn btn-success" onclick="loadSelectedPreset()">טען שאלון נבחר</button>
+      <button class="btn btn-outline" style="margin-top:8px;" onclick="createNewQuiz()">+ צור שאלון חדש מאפס</button>
+    </div>
+
+    <!-- טופס יצירת שאלה ידנית -->
+    <div id="builderArea">
+      <h3>הוספת שאלה לשאלון</h3>
+      <div class="form-group">
+        <label>נוסח השאלה:</label>
+        <input type="text" id="qTitle" placeholder="רשום את השאלה...">
+      </div>
+
+      <div class="form-group">
+        <label>סוג השאלה:</label>
+        <select id="qType" onchange="toggleTypeUI()">
+          <option value="mc">אמריקאית (רב-ברירה)</option>
+          <option value="text">תשובה קצרה</option>
+        </select>
+      </div>
+
+      <div id="mcOptions">
+        <div class="form-group">
+          <label>אפשרויות תשובה:</label>
+          <input type="text" class="mc-input" placeholder="תשובה 1">
+          <input type="text" class="mc-input" placeholder="תשובה 2" style="margin-top:6px;">
+          <input type="text" class="mc-input" placeholder="תשובה 3" style="margin-top:6px;">
+          <input type="text" class="mc-input" placeholder="תשובה 4" style="margin-top:6px;">
+        </div>
+        <div class="form-group">
+          <label>מספר תשובה נכונה (1-4):</label>
+          <input type="number" id="qCorrect" min="1" max="4" placeholder="אופציונלי (למשל: 1)">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>זמן מענה בשניות:</label>
+        <input type="number" id="qTimer" value="30">
+      </div>
+
+      <button class="btn" onclick="addQuestionToBank()">+ הוסף שאלה זו לבנק</button>
+    </div>
+
+    <!-- רשימת בנק השאלות הטעון -->
+    <div style="margin-top: 28px;">
+      <h3>שאלות בשאלון (<span id="bankCount">0</span>)</h3>
+      <div id="questionBankList"></div>
+    </div>
+  </div>
+
+  <!-- מסך מורה: שידור שאלה פעילה ותוצאות בלייב -->
+  <div id="hostActiveScreen" class="hidden">
+    <h2 id="activeQTitle"></h2>
+    <div id="hostTimer" class="timer-box"></div>
+    <p style="text-align:center; font-weight:bold;">סך הכל משיבים: <span id="responseCount">0</span></p>
+
+    <div id="hostResultsArea"></div>
+
+    <button class="btn btn-secondary" style="margin-top:20px;" onclick="revealAnswer()">חשוף תשובה נכונה (ועצור זמן)</button>
+    <button class="btn" onclick="backToBank()">חזור לבנק השאלות</button>
+  </div>
+
+  <!-- מסך תלמיד: קבלת שאלה ומענה -->
+  <div id="studentScreen" class="hidden">
+    <h3 id="studentStatus">ממתין לשאלה מהמורה...</h3>
+    <div id="studentTimer" class="timer-box"></div>
+
+    <div id="studentQArea" class="hidden">
+      <h2 id="studentQTitle"></h2>
+      <div id="studentInputs"></div>
+      <button class="btn" id="submitBtn" onclick="submitStudentAnswer()">שלח תשובה</button>
+    </div>
+
+    <div id="studentFeedback" class="hidden" style="text-align:center; margin-top:20px;">
+      <h2>התשובה נשלחה בהצלחה!</h2>
+      <p>ממתין לשאלה הבאה...</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let peer, roomCode;
+  let connections = {};
+  let currentQuizTitle = "שאלון חדש";
+  let questionBank = [];
+  let currentQ = null;
+  let responses = {};
+  let timerInterval;
+
+  // --- טעינת אינדקס שאלונים מ-quizzes.json ---
+  async function fetchPresetList() {
+    try {
+      const res = await fetch('quizzes.json');
+      if (!res.ok) throw new Error();
+      const list = await res.json();
+      
+      const select = document.getElementById('presetSelect');
+      select.innerHTML = '<option value="">-- בחר שאלון מהרשימה --</option>';
+      list.forEach(quiz => {
+        select.innerHTML += `<option value="${quiz.file}">${quiz.name}</option>`;
+      });
+    } catch (e) {
+      document.getElementById('presetSelect').innerHTML = '<option value="">לא נמצאו שאלונים בשרת</option>';
+    }
+  }
+
+  async function loadSelectedPreset() {
+    const file = document.getElementById('presetSelect').value;
+    if (!file) return alert('נא לבחור שאלון מהרשימה');
+
+    try {
+      const res = await fetch(file);
+      const data = await res.json();
+      currentQuizTitle = data.name || "שאלון נבחר";
+      document.getElementById('currentQuizName').innerText = currentQuizTitle;
+      questionBank = data.questions || data;
+      renderBank();
+      alert(`השאלון "${currentQuizTitle}" נטען בהצלחה!`);
+    } catch (e) {
+      alert('שגיאה בטעינת קובץ השאלון');
+    }
+  }
+
+  function createNewQuiz() {
+    const name = prompt("הכנס שם לשאלון החדש:", "שאלון חדש בפיזיקה");
+    if(name) {
+      currentQuizTitle = name;
+      document.getElementById('currentQuizName').innerText = name;
+      questionBank = [];
+      renderBank();
+    }
+  }
+
+  // --- הגדרות תקשורת מורה (PeerJS) ---
+  function initHost() {
+    roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+    peer = new Peer('room-' + roomCode);
+
+    peer.on('open', () => {
+      document.getElementById('roleSelectScreen').classList.add('hidden');
+      document.getElementById('hostScreen').classList.remove('hidden');
+      document.getElementById('displayRoomCode').innerText = roomCode;
+      fetchPresetList();
+    });
+
+    peer.on('connection', (conn) => {
+      conn.on('open', () => {
+        connections[conn.peer] = conn;
+        updateConnectedCount();
+      });
+
+      conn.on('data', (data) => {
+        if(data.type === 'ANSWER') {
+          responses[conn.peer] = data.answer;
+          updateHostLiveResults();
+        }
+      });
+
+      conn.on('close', () => {
+        delete connections[conn.peer];
+        updateConnectedCount();
+      });
+    });
+  }
+
+  function updateConnectedCount() {
+    document.getElementById('connectedCount').innerText = Object.keys(connections).length;
+  }
+
+  function toggleTypeUI() {
+    const type = document.getElementById('qType').value;
+    document.getElementById('mcOptions').style.display = (type === 'mc') ? 'block' : 'none';
+  }
+
+  function addQuestionToBank() {
+    const title = document.getElementById('qTitle').value.trim();
+    const type = document.getElementById('qType').value;
+    const timer = parseInt(document.getElementById('qTimer').value) || 0;
+    const correctVal = document.getElementById('qCorrect').value;
+    const correct = correctVal !== "" ? parseInt(correctVal) - 1 : -1;
+
+    if(!title) return alert('נא להזין נוסח שאלה');
+
+    let options = [];
+    if(type === 'mc') {
+      document.querySelectorAll('.mc-input').forEach(i => {
+        if(i.value.trim()) options.push(i.value.trim());
+      });
+      if(options.length < 2) return alert('נא להזין לפחות 2 תשובות');
+    }
+
+    questionBank.push({ title, type, options, timer, correct });
+    renderBank();
+
+    document.getElementById('qTitle').value = '';
+    document.querySelectorAll('.mc-input').forEach(i => i.value = '');
+    document.getElementById('qCorrect').value = '';
+  }
+
+  function renderBank() {
+    const list = document.getElementById('questionBankList');
+    document.getElementById('bankCount').innerText = questionBank.length;
+    list.innerHTML = '';
+
+    questionBank.forEach((q, idx) => {
+      list.innerHTML += `
+        <div class="q-card">
+          <strong>${idx + 1}. ${q.title}</strong> (${q.type === 'mc' ? 'אמריקאית' : 'פתוחה'}, ${q.timer} ש')
+          <button class="btn" style="padding:8px; margin-top:8px;" onclick="broadcastQuestion(${idx})">שדר שאלה זו לתלמידים</button>
+        </div>
+      `;
+    });
+  }
+
+  function broadcastQuestion(idx) {
+    currentQ = questionBank[idx];
+    responses = {};
+
+    for(let id in connections) {
+      connections[id].send({ type: 'QUESTION', question: currentQ });
+    }
+
+    document.getElementById('hostScreen').classList.add('hidden');
+    document.getElementById('hostActiveScreen').classList.remove('hidden');
+    document.getElementById('activeQTitle').innerText = currentQ.title;
+
+    updateHostLiveResults();
+
+    if(currentQ.timer > 0) startTimer(currentQ.timer, 'hostTimer');
+    else document.getElementById('hostTimer').innerText = '';
+  }
+
+  function updateHostLiveResults() {
+    const area = document.getElementById('hostResultsArea');
+    area.innerHTML = '';
+    let total = Object.keys(responses).length;
+    document.getElementById('responseCount').innerText = total;
+
+    if(currentQ.type === 'mc') {
+      let counts = new Array(currentQ.options.length).fill(0);
+      Object.values(responses).forEach(ans => { if(counts[ans] !== undefined) counts[ans]++; });
+
+      currentQ.options.forEach((opt, i) => {
+        let pct = total > 0 ? Math.round((counts[i] / total) * 100) : 0;
+        area.innerHTML += `
+          <div class="opt-card" id="host-opt-${i}">
+            <div style="display:flex; justify-content:space-between; font-weight:bold;">
+              <span>
+                <span class="correct-tag">✓ תשובה נכונה:</span>
+                ${i + 1}. ${opt}
+              </span>
+              <span>${counts[i]} הצבעות (${pct}%)</span>
+            </div>
+            <div class="bar-container"><div class="bar" style="width:${pct}%"></div></div>
+          </div>
+        `;
+      });
+    } else {
+      area.innerHTML = '<h3>תשובות התלמידים:</h3>';
+      Object.values(responses).forEach(ans => {
+        area.innerHTML += `<div class="short-ans-item">${ans}</div>`;
+      });
+    }
+  }
+
+  function revealAnswer() {
+    clearInterval(timerInterval);
+    document.getElementById('hostTimer').innerText = 'הזמן הופסק!';
+
+    if(currentQ.type === 'mc' && currentQ.correct >= 0) {
+      const el = document.getElementById(`host-opt-${currentQ.correct}`);
+      if(el) el.classList.add('correct');
+    } else if(currentQ.type === 'mc') {
+      alert('לא הוגדרה תשובה נכונה לשאלה זו.');
+    }
+  }
+
+  function backToBank() {
+    clearInterval(timerInterval);
+    document.getElementById('hostActiveScreen').classList.add('hidden');
+    document.getElementById('hostScreen').classList.remove('hidden');
+  }
+
+  // --- צד תלמיד ---
+  function showStudentConnect() {
+    document.getElementById('roleSelectScreen').classList.add('hidden');
+    document.getElementById('studentConnectScreen').classList.remove('hidden');
+  }
+
+  let hostConn;
+  let studentSelectedAns = null;
+
+  function connectAsStudent() {
+    const code = document.getElementById('joinRoomCode').value.trim();
+    if(!code) return alert('נא להזין קוד חדר');
+
+    peer = new Peer();
+    peer.on('open', () => {
+      hostConn = peer.connect('room-' + code);
+
+      hostConn.on('open', () => {
+        document.getElementById('studentConnectScreen').classList.add('hidden');
+        document.getElementById('studentScreen').classList.remove('hidden');
+      });
+
+      hostConn.on('data', (data) => {
+        if(data.type === 'QUESTION') {
+          showStudentQuestion(data.question);
+        }
+      });
+    });
+  }
+
+  function showStudentQuestion(q) {
+    document.getElementById('studentStatus').innerText = 'שאלה פעילה:';
+    document.getElementById('studentQArea').classList.remove('hidden');
+    document.getElementById('studentFeedback').classList.add('hidden');
+    document.getElementById('studentQTitle').innerText = q.title;
+
+    const container = document.getElementById('studentInputs');
+    container.innerHTML = '';
+    studentSelectedAns = null;
+
+    if(q.type === 'mc') {
+      q.options.forEach((opt, idx) => {
+        container.innerHTML += `<button class="opt-btn" id="s-opt-${idx}" onclick="selectStudentOpt(${idx})">${opt}</button>`;
+      });
+    } else {
+      container.innerHTML = `<input type="text" id="studentTextInput" placeholder="הקלד תשובה...">`;
+    }
+
+    if(q.timer > 0) startTimer(q.timer, 'studentTimer');
+    else document.getElementById('studentTimer').innerText = '';
+  }
+
+  function selectStudentOpt(idx) {
+    document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById(`s-opt-${idx}`).classList.add('selected');
+    studentSelectedAns = idx;
+  }
+
+  function submitStudentAnswer() {
+    let ans;
+    const txtInput = document.getElementById('studentTextInput');
+    if(txtInput) ans = txtInput.value.trim();
+    else ans = studentSelectedAns;
+
+    if(ans === null || ans === "") return alert('נא לבחור/להקליד תשובה');
+
+    hostConn.send({ type: 'ANSWER', answer: ans });
+
+    document.getElementById('studentQArea').classList.add('hidden');
+    document.getElementById('studentFeedback').classList.remove('hidden');
+  }
+
+  function startTimer(seconds, elementId) {
+    let left = seconds;
+    const el = document.getElementById(elementId);
+    el.innerText = left;
+    clearInterval(timerInterval);
+
+    timerInterval = setInterval(() => {
+      left--;
+      el.innerText = left;
+      if(left <= 0) {
+        clearInterval(timerInterval);
+        el.innerText = 'הזמן תם!';
+      }
+    }, 1000);
+  }
+</script>
+
+</body>
+</html>
