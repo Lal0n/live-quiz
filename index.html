@@ -88,7 +88,7 @@
     .btn-outline { background-color: transparent; color: var(--primary); border: 2px solid var(--primary); }
     .btn-outline:hover { background-color: #eff6ff; }
 
-    .hidden { display: none; }
+    .hidden { display: none !important; }
 
     .preset-box {
       background: #eff6ff;
@@ -342,19 +342,21 @@
       <span> | ניקוד: <strong id="studentScore">0</strong></span>
     </div>
 
+    <!-- הודעת המתנה לפני ששידרו שאלה -->
     <div id="studentWaitingArea" style="text-align:center; padding: 20px 0;">
       <h3 id="studentStatus">מחובר לשיעור בהצלחה!</h3>
       <p style="color:#64748b;">המורה עוד לא שידר שאלה. השאלה תופיע במסך זה באופן אוטומטי ברגע שהמורה יתחיל אותה.</p>
     </div>
 
-    <div id="studentTimer" class="timer-box"></div>
-
+    <!-- אזור הצגת השאלה הפעילה לתלמיד -->
     <div id="studentQArea" class="hidden">
+      <div id="studentTimer" class="timer-box"></div>
       <h2 id="studentQTitle"></h2>
       <div id="studentInputs"></div>
       <button class="btn" id="submitBtn" onclick="submitStudentAnswer()">שלח תשובה</button>
     </div>
 
+    <!-- אזור המשוב לאחר שליחה / חשיפת התשובות -->
     <div id="studentFeedback" class="hidden" style="text-align:center; margin-top:20px;">
       <h2 id="feedbackMsg">התשובה נשלחה בהצלחה!</h2>
       <div id="studentLiveResults"></div>
@@ -436,7 +438,6 @@
     }
   }
 
-  // טעינת קובץ JSON ישירות מהמחשב/נייד של המורה
   function loadLocalJSON(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -746,9 +747,10 @@
   }
 
   function showStudentQuestion(q) {
+    // הסתרת אזורי ההמתנה והמשוב והצגת השאלה
     document.getElementById('studentWaitingArea').classList.add('hidden');
-    document.getElementById('studentQArea').classList.remove('hidden');
     document.getElementById('studentFeedback').classList.add('hidden');
+    document.getElementById('studentQArea').classList.remove('hidden');
     document.getElementById('studentQTitle').innerText = q.title;
 
     const container = document.getElementById('studentInputs');
