@@ -57,7 +57,7 @@
     .form-group { margin-bottom: 14px; }
     label { display: block; font-weight: bold; margin-bottom: 6px; }
 
-    input[type="text"], input[type="number"], select {
+    input[type="text"], input[type="number"], input[type="password"], select {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--border);
@@ -186,6 +186,15 @@
       border-radius: 6px;
       border-right: 3px solid var(--primary);
     }
+
+    .share-link-box {
+      background: #f8fafc;
+      border: 1px dashed var(--primary);
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      margin: 12px 0;
+    }
   </style>
 </head>
 <body>
@@ -195,7 +204,7 @@
   <!-- מסך ראשי: בחירת תפקיד -->
   <div id="roleSelectScreen">
     <h1>מערכת השאלות בלייב</h1>
-    <button class="btn" onclick="initHost()">אני מורה (פתיחת שיעור)</button>
+    <button class="btn" onclick="promptTeacherPassword()">אני מורה (פתיחת שיעור)</button>
     <button class="btn btn-secondary" onclick="showStudentConnect()">אני תלמיד (התחברות)</button>
   </div>
 
@@ -211,7 +220,14 @@
 
   <!-- מסך מורה: ניהול בנק שאלות ושידור -->
   <div id="hostScreen" class="hidden">
-    <h2>קוד חדר להצטרפות התלמידים: <span id="displayRoomCode" class="room-code">....</span></h2>
+    <h2>קוד חדר להצטרפות: <span id="displayRoomCode" class="room-code">....</span></h2>
+    
+    <!-- קישור ישיר לשיתוף עם התלמידים -->
+    <div class="share-link-box">
+      <span>קישור ישיר לתלמידים:</span>
+      <button class="btn btn-sm btn-outline" style="width:auto; margin-right:8px;" onclick="copyStudentLink()">📋 העתק קישור ישיר</button>
+    </div>
+
     <p style="text-align:center;">תלמידים מחוברים כעת: <strong id="connectedCount" style="color:var(--primary);">0</strong></p>
     <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
 
@@ -310,6 +326,9 @@
 </div>
 
 <script>
+  // סיסמת מורה (תוכל לשנות כאן לכל סיסמה שתרצה)
+  const TEACHER_PASSWORD = "1234";
+
   let peer, roomCode;
   let connections = {};
   let currentQuizTitle = "שאלון חדש";
@@ -317,6 +336,27 @@
   let currentQ = null;
   let responses = {};
   let timerInterval;
+
+  // --- בדיקה בעת טעינת הדף אם יש קוד חדר ב-URL ---
+  window.onload = function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomFromUrl = urlParams.get('room');
+    
+    if (roomFromUrl) {
+      document.getElementById('joinRoomCode').value = roomFromUrl;
+      showStudentConnect();
+      connectAsStudent();
+    }
+  };
+
+  function promptTeacherPassword() {
+    const pwd = prompt("הכנס סיסמת מורה:");
+    if (pwd === TEACHER_PASSWORD) {
+      initHost();
+    } else if (pwd !== null) {
+      alert("סיסמה שגויה!");
+    }
+  }
 
   // --- טעינת אינדקס שאלונים מ-quizzes.json ---
   async function fetchPresetList() {
@@ -391,6 +431,14 @@
         delete connections[conn.peer];
         updateConnectedCount();
       });
+    });
+  }
+
+  function copyStudentLink() {
+    const baseUrl = window.location.href.split('?')[0];
+    const directUrl = `${baseUrl}?room=${roomCode}`;
+    navigator.clipboard.writeText(directUrl).then(() => {
+      alert('הקישור הישיר הועתק בהצלחה! תוכל להדביק אותו בצ\'אט של הזום או ב-Google Classroom.');
     });
   }
 
