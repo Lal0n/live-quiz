@@ -88,6 +88,7 @@
     .btn-secondary { background-color: #64748b; }
     .btn-secondary:hover { background-color: #475569; }
     .btn-success { background-color: var(--success); }
+    .btn-danger { background-color: var(--danger); }
     .btn-outline { background-color: transparent; color: var(--primary); border: 2px solid var(--primary); }
     .btn-outline:hover { background-color: #eff6ff; }
 
@@ -201,27 +202,30 @@
       margin-bottom: 10px;
     }
 
-    /* סרגל ניווט מהיר למורה */
-    .nav-bar {
+    /* רשת בחירת שאלות ישירה */
+    .q-grid {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f1f5f9;
-      padding: 12px;
-      border-radius: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
       margin-bottom: 16px;
-      gap: 10px;
+      justify-content: center;
     }
 
-    .nav-btn {
-      padding: 8px 16px;
+    .q-grid-btn {
+      padding: 10px 16px;
+      font-size: 15px;
       font-weight: bold;
-      border-radius: 6px;
-      border: 1px solid var(--border);
+      border-radius: 8px;
+      border: 2px solid var(--border);
       background: white;
       cursor: pointer;
     }
-    .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .q-grid-btn.active {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: white;
+    }
 
     /* פודיום Top 3 */
     .podium-container {
@@ -355,15 +359,12 @@
     </div>
   </div>
 
-  <!-- מסך מורה: שידור שאלה פעילה, ניווט מהיר ותוצאות -->
+  <!-- מסך מורה: שידור שאלה פעילה, בחירה ישירה ותוצאות -->
   <div id="hostActiveScreen" class="hidden">
     
-    <!-- סרגל ניווט מהיר בין שאלות -->
-    <div class="nav-bar">
-      <button class="nav-btn" id="prevQBtn" onclick="navigateQuestion(-1)">➔ שאלה קודמת</button>
-      <span style="font-weight:bold;">שאלה <span id="currentQNum">1</span> מתוך <span id="totalQNum">1</span></span>
-      <button class="nav-btn" id="nextQBtn" onclick="navigateQuestion(1)">שאלה הבאה ⬅</button>
-    </div>
+    <!-- בורר שאלות ישיר (רשת כפתורים) -->
+    <div style="text-align:center; margin-bottom:8px; font-weight:bold;">בחירת שאלה לשידור:</div>
+    <div class="q-grid" id="qGridContainer"></div>
 
     <button class="btn btn-success" id="broadcastCurrentBtn" style="margin-bottom:16px;" onclick="broadcastCurrentQuestion()">🚀 שדר שאלה זו לתלמידים</button>
 
@@ -378,9 +379,11 @@
       <button class="btn btn-outline" onclick="backToBank()">חזור לניהול שאלות</button>
     </div>
 
+    <button class="btn btn-danger" style="margin-top:16px;" onclick="finishLesson()">🏁 סיום שיעור והצגת מנצחים סופית</button>
+
     <!-- פודיום מובילים Top 3 -->
     <div id="podiumArea" class="hidden" style="margin-top:28px;">
-      <h3>🏆 שלושת המקומות הראשונים</h3>
+      <h3 id="podiumTitle">🏆 שלושת המקומות הראשונים</h3>
       <div class="podium-container" id="podiumCards"></div>
     </div>
   </div>
@@ -426,13 +429,15 @@
 
   let peer, roomCode;
   let connections = {};
-  let studentsData = {}; // שומר: name, score, totalTime
+  let studentsData = {};
   let currentQuizTitle = "שאלון חדש";
   let questionBank = [];
   let currentQIdx = 0;
   let currentQ = null;
-  let responses = {}; // שומר answer ו-responseTime
+  let responses = {};
+  let isQuestionActive = false;
   let questionStartTime = 0;
+  let remainingTimer = 0;
   let timerInterval;
 
   window.onload = function() {
@@ -546,8 +551,20 @@
 
       conn.on('data', (data) => {
         if(data.type === 'REGISTER') {
-          studentsData[conn.peer] = { name: data.name, score: 0, totalTime: 0 };
+          if(!studentsData[conn.peer]) {
+            studentsData[conn.peer] = { name: data.name, score: 0, totalTime: 0 };
+          }
           updateConnectedCount();
+
+          // סנכרון אוטומטי - אם יש שאלה באוויר, שדר אותה לתלמיד המתחבר מחדש
+          if(isQuestionActive && currentQ) {
+            let elapsed = Math.floor((Date.now() - questionStartTime) / 1000);
+            let timeForStudent = Math.max(0, currentQ.timer - elapsed);
+            conn.send({
+              type: 'QUESTION',
+              question: { ...currentQ, timer: timeForStudent }
+            });
+          }
         }
         else if(data.type === 'ANSWER') {
           responses[conn.peer] = {
@@ -560,7 +577,6 @@
 
       conn.on('close', () => {
         delete connections[conn.peer];
-        delete studentsData[conn.peer];
         updateConnectedCount();
       });
     });
@@ -635,6 +651,14 @@
     document.getElementById('cancelEditBtn').classList.remove('hidden');
   }
 
+  function deleteQuestion(idx) {
+    if(confirm(`האם למחוק את שאלה מס' ${idx + 1}?`)) {
+      questionBank.splice(idx, 1);
+      renderBank();
+      resetForm();
+    }
+  }
+
   function resetForm() {
     document.getElementById('editIndex').value = "-1";
     document.getElementById('qTitle').value = '';
@@ -657,6 +681,7 @@
           <br>
           <button class="btn btn-sm" onclick="openQuestionView(${idx})">ממסך שידור</button>
           <button class="btn btn-sm btn-outline" onclick="editQuestion(${idx})">✏️ ערוך</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteQuestion(${idx})">🗑️ מחק</button>
         </div>
       `;
     });
@@ -671,33 +696,38 @@
     document.getElementById('hostActiveScreen').classList.remove('hidden');
     document.getElementById('podiumArea').classList.add('hidden');
 
+    renderQGrid();
+    updateNavView();
+  }
+
+  function renderQGrid() {
+    const grid = document.getElementById('qGridContainer');
+    grid.innerHTML = '';
+    questionBank.forEach((_, idx) => {
+      let activeClass = (idx === currentQIdx) ? 'active' : '';
+      grid.innerHTML += `<button class="q-grid-btn ${activeClass}" onclick="selectQuestionDirectly(${idx})">${idx + 1}</button>`;
+    });
+  }
+
+  function selectQuestionDirectly(idx) {
+    currentQIdx = idx;
+    renderQGrid();
     updateNavView();
   }
 
   function updateNavView() {
     currentQ = questionBank[currentQIdx];
-    document.getElementById('currentQNum').innerText = currentQIdx + 1;
-    document.getElementById('totalQNum').innerText = questionBank.length;
     document.getElementById('activeQTitle').innerText = currentQ.title;
-
-    document.getElementById('prevQBtn').disabled = (currentQIdx === 0);
-    document.getElementById('nextQBtn').disabled = (currentQIdx === questionBank.length - 1);
-
     responses = {};
+    isQuestionActive = false;
     updateHostLiveResults();
     clearInterval(timerInterval);
     document.getElementById('hostTimer').innerText = currentQ.timer > 0 ? currentQ.timer : '';
   }
 
-  function navigateQuestion(direction) {
-    let newIdx = currentQIdx + direction;
-    if(newIdx >= 0 && newIdx < questionBank.length) {
-      openQuestionView(newIdx);
-    }
-  }
-
   function broadcastCurrentQuestion() {
     responses = {};
+    isQuestionActive = true;
     questionStartTime = Date.now();
 
     for(let id in connections) {
@@ -747,6 +777,7 @@
 
   function revealAnswer() {
     clearInterval(timerInterval);
+    isQuestionActive = false;
     document.getElementById('hostTimer').innerText = 'הזמן הופסק!';
 
     let total = Object.keys(responses).length;
@@ -767,7 +798,7 @@
       if(el) el.classList.add('correct');
     }
 
-    renderPodium();
+    renderPodium("🏆 שלושת המקומות הראשונים בשאלה זו");
 
     for(let id in connections) {
       let myRes = responses[id];
@@ -785,11 +816,17 @@
     }
   }
 
-  function renderPodium() {
+  function finishLesson() {
+    clearInterval(timerInterval);
+    isQuestionActive = false;
+    renderPodium("🎉 מנצחי השיעור הסופיים!");
+  }
+
+  function renderPodium(titleText) {
     const podiumCards = document.getElementById('podiumCards');
     podiumCards.innerHTML = '';
+    document.getElementById('podiumTitle').innerText = titleText;
 
-    // מיון לפי ניקוד גבוה, ובמידה ויש שוויון - לפי זמן מענה קצר יותר
     const sorted = Object.values(studentsData)
       .sort((a,b) => {
         if (b.score !== a.score) return b.score - a.score;
@@ -817,6 +854,7 @@
 
   function backToBank() {
     clearInterval(timerInterval);
+    isQuestionActive = false;
     document.getElementById('hostActiveScreen').classList.add('hidden');
     document.getElementById('hostScreen').classList.remove('hidden');
   }
@@ -828,7 +866,15 @@
   let studentQStart = 0;
 
   function connectAsStudent(roomCodeFromUrl) {
-    myName = getRandomName();
+    // שמירת / טעינת כינוי אנונימי מ-localStorage
+    const savedName = localStorage.getItem('quiz_student_name');
+    if(savedName) {
+      myName = savedName;
+    } else {
+      myName = getRandomName();
+      localStorage.setItem('quiz_student_name', myName);
+    }
+
     document.getElementById('studentBadge').innerText = myName;
 
     peer = new Peer();
