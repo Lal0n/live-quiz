@@ -16,6 +16,9 @@
       --success: #16a34a;
       --danger: #dc2626;
       --border: #cbd5e1;
+      --gold: #f59e0b;
+      --silver: #94a3b8;
+      --bronze: #b45309;
     }
 
     * { box-sizing: border-box; }
@@ -34,7 +37,7 @@
 
     .container {
       width: 100%;
-      max-width: 750px;
+      max-width: 800px;
       background: var(--card);
       padding: 28px;
       border-radius: 16px;
@@ -115,7 +118,7 @@
     }
 
     .bar-container {
-      height: 20px;
+      height: 22px;
       background-color: #e2e8f0;
       border-radius: 10px;
       overflow: hidden;
@@ -132,7 +135,7 @@
 
     .opt-card {
       margin: 12px 0;
-      padding: 12px;
+      padding: 14px;
       background: #f1f5f9;
       border-radius: 8px;
       border: 2px solid transparent;
@@ -198,19 +201,53 @@
       margin-bottom: 10px;
     }
 
-    .score-list {
-      list-style: none;
-      padding: 0;
+    /* סרגל ניווט מהיר למורה */
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f1f5f9;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      gap: 10px;
     }
 
-    .score-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px;
-      background: #f8fafc;
-      border-bottom: 1px solid var(--border);
+    .nav-btn {
+      padding: 8px 16px;
+      font-weight: bold;
       border-radius: 6px;
-      margin-bottom: 4px;
+      border: 1px solid var(--border);
+      background: white;
+      cursor: pointer;
+    }
+    .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* פודיום Top 3 */
+    .podium-container {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .podium-card {
+      background: #f8fafc;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      flex: 1;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+
+    .podium-card.gold { border-color: var(--gold); background: #fffbe3; }
+    .podium-card.silver { border-color: var(--silver); background: #f8fafc; }
+    .podium-card.bronze { border-color: var(--bronze); background: #fff7ed; }
+
+    .podium-rank {
+      font-size: 24px;
+      font-weight: bold;
     }
 
     .btn-sm {
@@ -233,7 +270,7 @@
     <button class="btn" onclick="promptTeacherPassword()">כניסת מורה (פתיחת שיעור)</button>
   </div>
 
-  <!-- מסך מורה: ניהול בנק שאלות ושידור -->
+  <!-- מסך מורה: ניהול בנק שאלות -->
   <div id="hostScreen" class="hidden">
     <div class="share-link-box">
       <h3 style="margin-bottom:8px;">הצטרפות תלמידים לשיעור</h3>
@@ -318,20 +355,33 @@
     </div>
   </div>
 
-  <!-- מסך מורה: שידור שאלה פעילה ותוצאות בלייב -->
+  <!-- מסך מורה: שידור שאלה פעילה, ניווט מהיר ותוצאות -->
   <div id="hostActiveScreen" class="hidden">
+    
+    <!-- סרגל ניווט מהיר בין שאלות -->
+    <div class="nav-bar">
+      <button class="nav-btn" id="prevQBtn" onclick="navigateQuestion(-1)">➔ שאלה קודמת</button>
+      <span style="font-weight:bold;">שאלה <span id="currentQNum">1</span> מתוך <span id="totalQNum">1</span></span>
+      <button class="nav-btn" id="nextQBtn" onclick="navigateQuestion(1)">שאלה הבאה ⬅</button>
+    </div>
+
+    <button class="btn btn-success" id="broadcastCurrentBtn" style="margin-bottom:16px;" onclick="broadcastCurrentQuestion()">🚀 שדר שאלה זו לתלמידים</button>
+
     <h2 id="activeQTitle"></h2>
     <div id="hostTimer" class="timer-box"></div>
     <p style="text-align:center; font-weight:bold;">סך הכל משיבים: <span id="responseCount">0</span></p>
 
     <div id="hostResultsArea"></div>
 
-    <button class="btn btn-secondary" style="margin-top:20px;" onclick="revealAnswer()">חשוף תשובה נכונה (ועצור זמן)</button>
-    <button class="btn" onclick="backToBank()">חזור לבנק השאלות</button>
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn btn-secondary" onclick="revealAnswer()">חשוף תשובה נכונה ועצור זמן</button>
+      <button class="btn btn-outline" onclick="backToBank()">חזור לניהול שאלות</button>
+    </div>
 
-    <div style="margin-top:24px;">
-      <h3>לוח ניקוד כיתתי:</h3>
-      <ul id="leaderboard" class="score-list"></ul>
+    <!-- פודיום מובילים Top 3 -->
+    <div id="podiumArea" class="hidden" style="margin-top:28px;">
+      <h3>🏆 שלושת המקומות הראשונים</h3>
+      <div class="podium-container" id="podiumCards"></div>
     </div>
   </div>
 
@@ -342,13 +392,11 @@
       <span> | ניקוד: <strong id="studentScore">0</strong></span>
     </div>
 
-    <!-- הודעת המתנה לפני ששידרו שאלה -->
     <div id="studentWaitingArea" style="text-align:center; padding: 20px 0;">
       <h3 id="studentStatus">מחובר לשיעור בהצלחה!</h3>
       <p style="color:#64748b;">המורה עוד לא שידר שאלה. השאלה תופיע במסך זה באופן אוטומטי ברגע שהמורה יתחיל אותה.</p>
     </div>
 
-    <!-- אזור הצגת השאלה הפעילה לתלמיד -->
     <div id="studentQArea" class="hidden">
       <div id="studentTimer" class="timer-box"></div>
       <h2 id="studentQTitle"></h2>
@@ -356,7 +404,6 @@
       <button class="btn" id="submitBtn" onclick="submitStudentAnswer()">שלח תשובה</button>
     </div>
 
-    <!-- אזור המשוב לאחר שליחה / חשיפת התשובות -->
     <div id="studentFeedback" class="hidden" style="text-align:center; margin-top:20px;">
       <h2 id="feedbackMsg">התשובה נשלחה בהצלחה!</h2>
       <div id="studentLiveResults"></div>
@@ -379,11 +426,13 @@
 
   let peer, roomCode;
   let connections = {};
-  let studentsData = {};
+  let studentsData = {}; // שומר: name, score, totalTime
   let currentQuizTitle = "שאלון חדש";
   let questionBank = [];
+  let currentQIdx = 0;
   let currentQ = null;
-  let responses = {};
+  let responses = {}; // שומר answer ו-responseTime
+  let questionStartTime = 0;
   let timerInterval;
 
   window.onload = function() {
@@ -497,11 +546,14 @@
 
       conn.on('data', (data) => {
         if(data.type === 'REGISTER') {
-          studentsData[conn.peer] = { name: data.name, score: 0 };
+          studentsData[conn.peer] = { name: data.name, score: 0, totalTime: 0 };
           updateConnectedCount();
         }
         else if(data.type === 'ANSWER') {
-          responses[conn.peer] = data.answer;
+          responses[conn.peer] = {
+            answer: data.answer,
+            responseTime: data.responseTime
+          };
           updateHostLiveResults();
         }
       });
@@ -603,27 +655,57 @@
         <div class="q-card">
           <strong>${idx + 1}. ${q.title}</strong> (${q.type === 'mc' ? 'אמריקאית' : 'פתוחה'}, ${q.timer} ש')
           <br>
-          <button class="btn btn-sm" onclick="broadcastQuestion(${idx})">שדר שאלה זו</button>
+          <button class="btn btn-sm" onclick="openQuestionView(${idx})">ממסך שידור</button>
           <button class="btn btn-sm btn-outline" onclick="editQuestion(${idx})">✏️ ערוך</button>
         </div>
       `;
     });
   }
 
-  function broadcastQuestion(idx) {
-    currentQ = questionBank[idx];
+  function openQuestionView(idx) {
+    if(questionBank.length === 0) return;
+    currentQIdx = idx;
+    currentQ = questionBank[currentQIdx];
+
+    document.getElementById('hostScreen').classList.add('hidden');
+    document.getElementById('hostActiveScreen').classList.remove('hidden');
+    document.getElementById('podiumArea').classList.add('hidden');
+
+    updateNavView();
+  }
+
+  function updateNavView() {
+    currentQ = questionBank[currentQIdx];
+    document.getElementById('currentQNum').innerText = currentQIdx + 1;
+    document.getElementById('totalQNum').innerText = questionBank.length;
+    document.getElementById('activeQTitle').innerText = currentQ.title;
+
+    document.getElementById('prevQBtn').disabled = (currentQIdx === 0);
+    document.getElementById('nextQBtn').disabled = (currentQIdx === questionBank.length - 1);
+
     responses = {};
+    updateHostLiveResults();
+    clearInterval(timerInterval);
+    document.getElementById('hostTimer').innerText = currentQ.timer > 0 ? currentQ.timer : '';
+  }
+
+  function navigateQuestion(direction) {
+    let newIdx = currentQIdx + direction;
+    if(newIdx >= 0 && newIdx < questionBank.length) {
+      openQuestionView(newIdx);
+    }
+  }
+
+  function broadcastCurrentQuestion() {
+    responses = {};
+    questionStartTime = Date.now();
 
     for(let id in connections) {
       connections[id].send({ type: 'QUESTION', question: currentQ });
     }
 
-    document.getElementById('hostScreen').classList.add('hidden');
-    document.getElementById('hostActiveScreen').classList.remove('hidden');
-    document.getElementById('activeQTitle').innerText = currentQ.title;
-
+    document.getElementById('podiumArea').classList.add('hidden');
     updateHostLiveResults();
-    updateLeaderboard();
 
     if(currentQ.timer > 0) startTimer(currentQ.timer, 'hostTimer');
     else document.getElementById('hostTimer').innerText = '';
@@ -637,7 +719,7 @@
 
     if(currentQ.type === 'mc') {
       let counts = new Array(currentQ.options.length).fill(0);
-      Object.values(responses).forEach(ans => { if(counts[ans] !== undefined) counts[ans]++; });
+      Object.values(responses).forEach(res => { if(counts[res.answer] !== undefined) counts[res.answer]++; });
 
       currentQ.options.forEach((opt, i) => {
         let pct = total > 0 ? Math.round((counts[i] / total) * 100) : 0;
@@ -656,9 +738,9 @@
       });
     } else {
       area.innerHTML = '<h3>תשובות התלמידים:</h3>';
-      Object.entries(responses).forEach(([pId, ans]) => {
+      Object.entries(responses).forEach(([pId, res]) => {
         let name = studentsData[pId] ? studentsData[pId].name : 'תלמיד';
-        area.innerHTML += `<div class="short-ans-item"><strong>${name}:</strong> ${ans}</div>`;
+        area.innerHTML += `<div class="short-ans-item"><strong>${name}</strong> (${res.responseTime.toFixed(1)} ש'): ${res.answer}</div>`;
       });
     }
   }
@@ -670,13 +752,14 @@
     let total = Object.keys(responses).length;
     let counts = new Array(currentQ.options.length).fill(0);
     if(currentQ.type === 'mc') {
-      Object.values(responses).forEach(ans => { if(counts[ans] !== undefined) counts[ans]++; });
+      Object.values(responses).forEach(res => { if(counts[res.answer] !== undefined) counts[res.answer]++; });
     }
 
     if(currentQ.type === 'mc' && currentQ.correct >= 0) {
-      Object.entries(responses).forEach(([pId, ans]) => {
-        if(ans === currentQ.correct && studentsData[pId]) {
+      Object.entries(responses).forEach(([pId, res]) => {
+        if(res.answer === currentQ.correct && studentsData[pId]) {
           studentsData[pId].score += 10;
+          studentsData[pId].totalTime += res.responseTime;
         }
       });
 
@@ -684,10 +767,11 @@
       if(el) el.classList.add('correct');
     }
 
-    updateLeaderboard();
+    renderPodium();
 
     for(let id in connections) {
-      let myAns = responses[id];
+      let myRes = responses[id];
+      let myAns = myRes ? myRes.answer : null;
       let myScore = studentsData[id] ? studentsData[id].score : 0;
       connections[id].send({
         type: 'REVEAL_RESULTS',
@@ -701,15 +785,34 @@
     }
   }
 
-  function updateLeaderboard() {
-    const board = document.getElementById('leaderboard');
-    if(!board) return;
-    board.innerHTML = '';
-    Object.values(studentsData)
-      .sort((a,b) => b.score - a.score)
-      .forEach(st => {
-        board.innerHTML += `<li class="score-item"><span>${st.name}</span><strong>${st.score} נק'</strong></li>`;
-      });
+  function renderPodium() {
+    const podiumCards = document.getElementById('podiumCards');
+    podiumCards.innerHTML = '';
+
+    // מיון לפי ניקוד גבוה, ובמידה ויש שוויון - לפי זמן מענה קצר יותר
+    const sorted = Object.values(studentsData)
+      .sort((a,b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.totalTime - b.totalTime;
+      })
+      .slice(0, 3);
+
+    if(sorted.length === 0) return;
+
+    document.getElementById('podiumArea').classList.remove('hidden');
+
+    const styles = ['gold', 'silver', 'bronze'];
+    const icons = ['🥇', '🥈', '🥉'];
+
+    sorted.forEach((st, idx) => {
+      podiumCards.innerHTML += `
+        <div class="podium-card ${styles[idx]}">
+          <div class="podium-rank">${icons[idx]} מקום ${idx + 1}</div>
+          <div style="font-size:18px; font-weight:bold; margin:6px 0;">${st.name}</div>
+          <div style="color:var(--primary); font-weight:bold;">${st.score} נקודות</div>
+        </div>
+      `;
+    });
   }
 
   function backToBank() {
@@ -722,6 +825,7 @@
   let hostConn;
   let myName = "";
   let studentSelectedAns = null;
+  let studentQStart = 0;
 
   function connectAsStudent(roomCodeFromUrl) {
     myName = getRandomName();
@@ -747,7 +851,7 @@
   }
 
   function showStudentQuestion(q) {
-    // הסתרת אזורי ההמתנה והמשוב והצגת השאלה
+    studentQStart = Date.now();
     document.getElementById('studentWaitingArea').classList.add('hidden');
     document.getElementById('studentFeedback').classList.add('hidden');
     document.getElementById('studentQArea').classList.remove('hidden');
@@ -783,7 +887,13 @@
 
     if(ans === null || ans === "") return alert('נא לבחור/להקליד תשובה');
 
-    hostConn.send({ type: 'ANSWER', answer: ans });
+    let responseTime = (Date.now() - studentQStart) / 1000;
+
+    hostConn.send({
+      type: 'ANSWER',
+      answer: ans,
+      responseTime: responseTime
+    });
 
     document.getElementById('studentQArea').classList.add('hidden');
     document.getElementById('studentFeedback').classList.remove('hidden');
