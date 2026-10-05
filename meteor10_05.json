@@ -67,6 +67,27 @@
       ],
       "timer": 40,
       "correct": 2
+    },
+    {
+      "title": "מה מצא חן בעיני היום? מה אני זוכר.ת במיוחד?",
+      "type": "text",
+      "options": [],
+      "timer": 60,
+      "correct": -1
+    },
+    {
+      "title": "איזה נושא/ דבר היה לי קל לי קל היום",
+      "type": "text",
+      "options": [],
+      "timer": 60,
+      "correct": -1
+    },
+    {
+      "title": "איזה נושא/ דבר היה לי מאתגר לי קל היום",
+      "type": "text",
+      "options": [],
+      "timer": 60,
+      "correct": -1
     }
   ]
 }
